@@ -7,7 +7,12 @@ output: html_document
 1. What are the files that I have to work with?
 2. Do these files meet my expectations?
 
-# Overview of datasets
+## Where is your data?
+When working with data, it is helpful to keep everything in one place. In my home directory, I created a folder called "Data" and in that folder I created a folder "OULAD."
+
+For for information on importing and exporting data using R see <http://r4ds.had.co.nz/data-import.html#data-import>.
+
+## Overview of datasets
 Below, are the files and descriptions from OULAD:
 (https://analyse.kmi.open.ac.uk/open_dataset#data)
 
@@ -22,14 +27,10 @@ Below, are the files and descriptions from OULAD:
 ```{r}
 # Load packages
 #install.packages("tidyverse")
+#install.packages("skimr")
 library(tidyverse)
+library(skimr)
 ```
-
-# Where is your data?
-When working with data, it is helpful to keep everything in one place. For this course, we will create nested folders to keep track of our data from the Open University. In my user directory, I created a folder called "Data" and in that folder I created a folder "OULAD." I access my data using "~/Data/OULAD/." For for information on importing and exporting data using R see <http://r4ds.had.co.nz/data-import.html#data-import>.
-
-Now that all of our data is in a folder that we can find with regularity, explore each file to get a feel for what is there. I have included descriptions of each file in this R Markdown file from <https://analyse.kmi.open.ac.uk/open_dataset>.
-
 ## assessments.csv
 * **code_module:** identification code of the module, to which the assessment belongs.
 * **code_presentation:** identification code of the presentation, to which the assessment belongs.
@@ -42,6 +43,11 @@ Now that all of our data is in a folder that we can find with regularity, explor
 assessments <- read_csv("~/Data/OULAD/assessments.csv")
 ```
 
+```{r}
+skim(assessments)
+```
+
+
 ## courses.csv
 * **code_module:** code name of the module, which serves as the identifier.
 * **code_presentation:** code name of the presentation. It consists of the year and “B” for the presentation starting in February and “J” for the presentation starting in October.
@@ -49,6 +55,10 @@ assessments <- read_csv("~/Data/OULAD/assessments.csv")
 
 ```{r}
 courses <- read_csv("~/Data/OULAD/courses.csv")
+```
+
+```{r}
+skim(courses)
 ```
 
 ## studentAssessment.csv
@@ -60,6 +70,10 @@ courses <- read_csv("~/Data/OULAD/courses.csv")
 
 ```{r}
 stdas <- read_csv("~/Data/OULAD/studentAssessment.csv")
+```
+
+```{r}
+skim(stdas)
 ```
 
 ## studentInfo.csv
@@ -80,6 +94,10 @@ stdas <- read_csv("~/Data/OULAD/studentAssessment.csv")
 stdinf <- read_csv("~/Data/OULAD/studentInfo.csv")
 ```
 
+```{r}
+skim(stdinf)
+```
+
 ## studentRegistration.csv
 * **code_module:** an identification code for a module.
 * **code_presentation:** the identification code of the presentation.
@@ -89,6 +107,10 @@ stdinf <- read_csv("~/Data/OULAD/studentInfo.csv")
 
 ```{r}
 stdreg <- read_csv("~/Data/OULAD/studentRegistration.csv")
+```
+
+```{r}
+skim(stdreg)
 ```
 
 ## studentVle.csv
@@ -105,6 +127,10 @@ timestamped)
 stdvle <- read_csv("~/Data/OULAD/studentVle.csv")
 ```
 
+```{r}
+skim(stdvle)
+```
+
 ## vle.csv
 This file contains information related to each VLE activity.
 * **id_site:** an identification number of the material.
@@ -117,3 +143,8 @@ This file contains information related to each VLE activity.
 ```{r}
 vle <- read_csv("~/Data/OULAD/vle.csv")
 ```
+
+```{r}
+skim(vle)
+```
+
