@@ -1,0 +1,272 @@
+---
+title: "Feature Engineering for Improving Learning Environments: Week 2"
+output: html_document
+---
+
+# Part I
+
+```{r}
+# Load packages (suppress warning messages; not necessary)
+#install.packages("tidyverse")
+library(tidyverse)
+```
+
+```{r message=FALSE, warning=FALSE}
+# Read in data from Week 1
+assessments <- read_csv("~/Data/OULAD/assessments.csv")
+courses <- read_csv("~/Data/OULAD/courses.csv")
+stdas <- read_csv("~/Data/OULAD/studentAssessment.csv")
+stdinf <- read_csv("~/Data/OULAD/studentInfo.csv")
+stdreg <- read_csv("~/Data/OULAD/studentRegistration.csv")
+stdvle <- read_csv("~/Data/OULAD/studentVle.csv")
+vle <- read_csv("~/Data/OULAD/vle.csv")
+```
+
+## Begin subsetting data
+```{r}
+# Subset data to Module FFF
+stdinf_f <- stdinf %>%
+  filter(code_module == "FFF")
+```
+
+## Explore outcomes
+```{r}
+# Grade bar chart
+stdinf_f %>%
+  select(id_student, code_presentation, final_result) %>%
+  unique() %>%
+  ggplot(aes(x = final_result)) + 
+  geom_bar() + 
+  labs(x = "Final Result",
+       y = "Number of Students") +
+  facet_wrap(~code_presentation)
+```
+
+## Continue subsetting data
+My demonstrations will be made using presentation "2013J."
+For your assignments, please use presentation "2014J."
+```{r}
+# Subset studentInfo one step further: presentation 2013J
+stdinf_f13j <- stdinf %>%
+  filter(code_module == "FFF" & code_presentation == "2013J")
+```
+
+```{r}
+# Subset VLE
+stdvle_f13j <- stdvle %>%
+  filter(code_module == "FFF" & code_presentation == "2013J")
+```
+
+```{r}
+head(stdvle_f13j)
+```
+
+## Generate our first features
+```{r}
+# Create new data frame and the count of VLEs over tinme (VLE x Day)
+# Count = VLE materials interacted with, could be duplicates
+stdvle_f13j_ag <- stdvle_f13j %>%
+  group_by(id_student) %>%
+  summarise(total_vle = n(),
+            unique_vle = n_distinct(id_site),
+            total_clicks = sum(sum_click),
+            days = n_distinct(date),
+            unique_perday = unique_vle / days)
+```
+
+```{r}
+head(stdvle_f13j_ag)
+```
+
+# Part II
+
+## Visualizing distributions
+```{r}
+# Total VLE activities histogram
+ggplot(stdvle_f13j_ag) +
+           geom_histogram(aes(total_vle), binwidth = 100)
+```
+
+```{r}
+# Total unique VLE activities
+ggplot(stdvle_f13j_ag) +
+           geom_histogram(aes(unique_vle), binwidth = 10)
+```
+
+```{r}
+# Unique VLE activities per day
+ggplot(stdvle_f13j_ag) +
+           geom_histogram(aes(unique_perday), binwidth = .25)
+```
+
+## Joining data
+```{r}
+# Reduce variables inv the studentInf dataframe
+stdinf_f13j_s <- stdinf_f13j %>%
+  select(id_student, final_result)
+```
+
+```{r}
+# Join studentIng and studentVle aggregated at student level
+stdinf_f13j_s_vle_ag <- full_join(stdinf_f13j_s, stdvle_f13j_ag, by = "id_student")
+```
+
+## Explore covariation between outcome and predictor (Part 1)
+```{r}
+# Boxplot of final result and total unique VLE
+stdinf_f13j_s_vle_ag %>%
+  ggplot() +
+  geom_boxplot(aes(x = final_result, y = unique_vle))
+```
+
+```{r}
+# Boxplot of final result and unique VLE per day
+stdinf_f13j_s_vle_ag %>%
+  ggplot() +
+  geom_boxplot(aes(x = final_result, y = unique_perday))
+```
+
+```{r}
+# Boxplot of final result and days active
+stdinf_f13j_s_vle_ag %>%
+  ggplot() +
+  geom_boxplot(aes(x = final_result, y = days))
+```
+
+```{r}
+# Join student information with VLE activities
+stdinf_f13j_s_vle <- full_join(stdinf_f13j_s, stdvle_f13j, by = "id_student")
+```
+
+```{r}
+# What is the maximum date a student registered in the course?
+stdinf_f13j_s_vle %>%
+  group_by(id_student, final_result) %>%
+  summarise(max_date = max(date)) %>%
+  ggplot() +
+  geom_boxplot(aes(x = final_result, y = max_date))
+```
+
+# Part III
+
+## Working within a set timeframe
+```{r}
+# Explore total activity within specific timeframes
+stdvle_f13j_ag50 <- stdvle_f13j %>%
+  filter(date <= 50) %>% # modify as desired
+  group_by(id_student) %>%
+  summarise(total_vle = n(),
+            unique_vle = n_distinct(id_site),
+            total_clicks = sum(sum_click),
+            days = n_distinct(date),
+            unique_perday = unique_vle / days)
+
+# Join new subsetted file with student final results
+stdinf_f13j_s_vle_ag50 <- full_join(stdinf_f13j_s, stdvle_f13j_ag50, by = "id_student")
+
+stdinf_f13j_s_vle_ag50 %>%
+  ggplot() +
+  geom_boxplot(aes(x = final_result, y = unique_vle))
+```
+
+## Cumulative activity
+```{r}
+# Visualize all observations
+stdinf_f13j_s_vle %>%
+    filter(date <= 50) %>%
+    group_by(id_student, final_result, date) %>%
+    summarise(total_per = n()) %>%
+    arrange(id_student, date)%>%
+    group_by(id_student) %>%
+    mutate(cumul = cumsum(total_per)) %>%
+    ggplot() +
+        geom_jitter(aes(x = date, y = cumul, color = final_result), alpha = .2)
+```
+
+```{r}
+# Visualize all observations using facetting
+stdinf_f13j_s_vle %>%
+    filter(date <= 50) %>%
+    group_by(id_student, final_result, date) %>%
+    summarise(unique_per = n()) %>%
+    arrange(id_student, date)%>%
+    group_by(id_student) %>%
+    mutate(cumul = cumsum(unique_per)) %>%
+    ggplot() +
+        geom_jitter(aes(x = date, y = cumul, color = final_result), alpha = .2) + 
+  facet_wrap(~final_result)
+```
+
+## Types of activities accessed
+```{r}
+# Identify most used VLE activities
+most_used <- stdinf_f13j_s_vle %>%
+  filter(date <= 50) %>%
+  group_by(id_student, id_site, final_result) %>%
+  unique() %>%
+  summarise(total_per = n()) %>%
+  group_by(id_site) %>%
+  summarise(sum = sum(total_per)) 
+
+most_used <- inner_join(most_used, vle, by = "id_site")
+
+most_used %>%
+  arrange(-sum)
+```
+
+## Relationship between student outcome and asessment scores
+```{r}
+# Join studentInf.csv subset and assessment studentAssessments.csv
+stdinf_f13j_s_as <- inner_join(stdinf_f13j_s, stdas, by = "id_student")
+
+stdinf_f13j_s_as <- left_join(stdinf_f13j_s_as, assessments, by = "id_assessment")
+
+stdinf_f13j_s_as <- stdinf_f13j_s_as %>%
+  filter(code_module == "FFF" & code_presentation == "2013J")
+```
+
+```{r}
+# Generate count, mean, and standard deviations per assignment and final result
+# Turned warning off because "score" column contains characters.
+stdinf_f13j_s_as %>%
+  group_by(final_result, assessment_type, id_assessment) %>%
+  summarise(count = n(),
+            mean_score = mean(score, na.rm = T),
+            sd_score = sd(score, na.rm = T))
+```
+
+```{r}
+# Remove question marks with NA
+stdinf_f13j_s_as <- stdinf_f13j_s_as %>%
+  mutate(score = ifelse(score == "?", NA, score),
+         score = as.integer(score),
+         date = as.integer(date))
+```
+
+```{r}
+stdinf_f13j_s_as %>%
+  group_by(final_result, assessment_type, id_assessment) %>%
+  summarise(count = n(),
+            mean_score = mean(score, na.rm = T),
+            sd_score = sd(score, na.rm = T))
+```
+
+```{r}
+# Add date to the way we are aggregrating means
+stdinf_f13j_s_as %>%
+  group_by(final_result, assessment_type, date, id_assessment) %>%
+  summarise(count = n(),
+            mean_score = mean(score, na.rm = T),
+            sd_score = sd(score, na.rm = T)) %>%
+  arrange(final_result, date)
+```
+
+```{r}
+# Create boxplots to visually explore relationships
+stdinf_f13j_s_as %>%
+  mutate(date = as.numeric(date),
+         score = as.numeric(ifelse(score == "?", NA, score))) %>%
+  filter(date <= 100) %>% 
+  ggplot() + 
+  geom_boxplot(aes(x = as.factor(id_assessment), y = score, colour = final_result))
+```
