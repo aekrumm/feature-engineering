@@ -1,0 +1,319 @@
+---
+title: "Feature Engineering for Improving Learning Environments: Week 3"
+output: html_document
+---
+
+```{r}
+# Load packages (suppress warning messages; not necessary)
+library(tidyverse)
+library(broom)
+library(skimr)
+library(Hmisc)
+```
+
+```{r message=FALSE, warning=FALSE}
+# Read in data from Week 1
+assessments <- read_csv("~/Data/OULAD/assessments.csv")
+courses <- read_csv("~/Data/OULAD/courses.csv")
+stdas <- read_csv("~/Data/OULAD/studentAssessment.csv")
+stdinf <- read_csv("~/Data/OULAD/studentInfo.csv")
+stdreg <- read_csv("~/Data/OULAD/studentRegistration.csv")
+stdvle <- read_csv("~/Data/OULAD/studentVle.csv")
+vle <- read_csv("~/Data/OULAD/vle.csv")
+```
+
+# Part I
+
+## Load data from previous week
+```{r}
+# Subset studentInfo one step further: presentation 2013J
+stdinf_f13j <- stdinf %>%
+  filter(code_module == "FFF" & code_presentation == "2013J")
+
+# Subset VLE
+stdvle_f13j <- stdvle %>%
+  filter(code_module == "FFF" & code_presentation == "2013J")
+
+# Count = VLE materials interacted with, could be duplicates
+stdvle_f13j_ag <- stdvle_f13j %>%
+  group_by(id_student) %>%
+  summarise(total_vle = n(),
+            unique_vle = n_distinct(id_site),
+            total_clicks = sum(sum_click),
+            days = n_distinct(date),
+            unique_perday = unique_vle / days)
+
+# Reduce variables inv the studentInf dataframe
+stdinf_f13j_s <- stdinf_f13j %>%
+  select(id_student, final_result)
+
+# Join studentIng and studentVle aggregated at student level
+stdinf_f13j_s_vle_ag <- full_join(stdinf_f13j_s, stdvle_f13j_ag, by = "id_student")
+
+# Join student information with VLE activities
+stdinf_f13j_s_vle <- full_join(stdinf_f13j_s, stdvle_f13j, by = "id_student")
+
+# Join studentInf.csv subset and assessment studentAssessments.csv
+stdinf_f13j_s_as <- inner_join(stdinf_f13j_s, stdas, by = "id_student")
+
+stdinf_f13j_s_as <- left_join(stdinf_f13j_s_as, assessments, by = "id_assessment")
+
+stdinf_f13j_s_as <- stdinf_f13j_s_as %>%
+  filter(code_module == "FFF" & code_presentation == "2013J")
+```
+
+## Fillin missing assignments
+```{r}
+# Fill in id_assessments for all students because not all students made it that far, but we will want to compare against these students "as id" they had made it.
+# Create a filled in data frame
+dump <- stdinf_f13j_s_as %>%
+  mutate(date = as.numeric(date)) %>%
+  filter(date <= 50) %>% 
+  expand(nesting(id_student, final_result, code_module, code_presentation, assessment_type), id_assessment)
+
+```
+
+```{r}
+dump %>% arrange(id_student)
+```
+
+```{r}
+# Join filled in data frame with assessment information
+stdinf_f13j_s_as_fill <- left_join(dump, stdinf_f13j_s_as, by = c("id_student", "final_result", "code_module", "code_presentation", "assessment_type", "id_assessment"))
+```
+
+```{r}
+stdinf_f13j_s_as_fill %>% arrange(id_student)
+```
+
+```{r}
+# For comparison purposes, we want to use a relative measure, like a percent, so we will calculate the percent of students with each final result who completed the first four assessments. Create a count of students with a given final result
+final <- stdinf_f13j %>%
+  group_by(final_result) %>%
+  summarise(final_count = n())
+
+# Join that count with the previous data frame
+stdinf_f13j_s_as_fill <- left_join(stdinf_f13j_s_as_fill, final, by = "final_result")
+
+# Create a variable that identifies whether a student turned in the assessment
+stdinf_f13j_s_as_fill <- stdinf_f13j_s_as_fill %>%
+  mutate(sub_assess = ifelse(is.na(date_submitted), 0, 1))
+
+# Long form is great for visual
+stdinf_f13j_s_as_fill %>%
+  group_by(final_result, id_assessment) %>%
+  summarise(sum = sum(sub_assess),
+            final_count = max(final_count),
+            percent = 100 * (sum / final_count)) %>%
+  ggplot() +
+  geom_bar(aes(x = final_result, y = percent, fill = final_result), stat = "identity") + 
+  facet_wrap(~id_assessment)
+```
+
+# Part II
+
+## Reshape assessment submission into columns
+```{r}
+# Reshape submission variables
+as_wide_sub <- stdinf_f13j_s_as_fill %>%
+  mutate(id_assessment= paste0("as_sub_", id_assessment)) %>%
+  select(id_student, id_assessment, sub_assess) %>%
+  spread(., id_assessment, sub_assess)
+```
+
+```{r}
+# Reshape score variables
+as_wide_scr <- stdinf_f13j_s_as_fill %>%
+  mutate(score = as.numeric(ifelse(score == "?", NA, score)),
+         id_assessment= paste0("as_scr_", id_assessment)) %>%
+  select(id_student, id_assessment, score) %>%
+  spread(., id_assessment, score)
+```
+
+```{r}
+# Count = VLE materials interacted with, could be duplicates
+stdvle_f13j_ag50 <- stdvle_f13j %>%
+  mutate(date = as.numeric(date)) %>%
+  filter(date <= 50) %>%
+  group_by(id_student) %>%
+  summarise(total_vle = n(),
+            unique_vle = n_distinct(id_site),
+            total_clicks = sum(sum_click),
+            days = n_distinct(date),
+            unique_perday = unique_vle / days)
+```
+
+## Join data frames
+```{r}
+# Combine reshaped data into one data frame for anlaysis
+df <- full_join(stdinf_f13j_s, as_wide_sub, by = "id_student")
+df <- full_join(df, as_wide_scr, by = "id_student")
+df <- full_join(df, stdvle_f13j_ag50, by = "id_student")
+```
+
+```{r}
+df
+```
+
+## Clean up Withdraw
+```{r}
+# Subset studentRegistraion.csv
+stdreg_f13j <- stdreg %>%
+  filter(code_module == "FFF" & code_presentation == "2013J")
+
+# Join with wide form data
+df <- left_join(df, stdreg_f13j, by = "id_student")
+
+# Clean up unregistration feature
+df <- df %>%
+  mutate(date_unregistration = ifelse(date_unregistration == "?", NA, date_unregistration),
+         date_unregistration = as.numeric(date_unregistration))
+
+# Subset data to those who did not withdraw before start of course
+df <- df %>%
+  filter(date_unregistration > 0 | is.na(date_unregistration))
+```
+
+## Cleaning up missing data
+```{r}
+# Replace missing with 0 when meaningful
+df <- df %>%
+  mutate(as_sub_34873 = ifelse(is.na(as_sub_34873), 0, as_sub_34873),
+         as_sub_34874 = ifelse(is.na(as_sub_34874), 0, as_sub_34874),
+         total_vle = ifelse(is.na(total_vle), 0, total_vle),
+         unique_vle = ifelse(is.na(unique_vle), 0, unique_vle),
+         total_clicks = ifelse(is.na(total_clicks), 0, total_clicks),
+         days = ifelse(is.na(days), 0 , days),
+         unique_perday = ifelse(is.na(unique_perday), 0, unique_perday))
+```
+
+```{r}
+# Create dependent variable and reorder columns
+df <- df %>%
+  mutate(pass = ifelse(final_result == "Pass" | final_result == "Distinction", 1, 0),
+         total_as = as_sub_34873 + as_sub_34874) %>%
+  select(id_student, code_module, code_presentation, date_registration, date_unregistration, final_result, pass,
+          total_vle, unique_vle, total_clicks, days, unique_perday, total_as, starts_with("as"))
+```
+
+```{r}
+# Create descriptives table
+skim(df)
+```
+
+## Preliminary model
+```{r}
+m1 <- glm(pass ~ days + log(total_vle) + log(unique_vle) + as_sub_34873 + as_sub_34874, data = df)
+summary(m1)
+```
+
+```{r}
+m1 <- glm(pass ~ days + log(total_vle) + log(unique_vle) + as_scr_34873 + as_scr_34874, data = df)
+summary(m1)
+```
+
+# Part III
+
+## Each VLE a feature and PCA
+```{r}
+# See https://tbradley1013.github.io/2018/02/01/pca-in-a-tidy-verse-framework/
+x <- stdinf_f13j_s_vle %>%
+  filter(date <= 50) %>%
+  select(id_student, id_site, sum_click) %>%
+  group_by(id_student, id_site) %>%
+  summarise(sum_click = sum(sum_click, na.rm = T)) %>%
+  ungroup() %>%
+  mutate(id_site = paste0("id", id_site))
+```
+
+```{r}
+y <- spread(x, id_site, sum_click)
+```
+
+```{r}
+y
+```
+
+```{r}
+y[is.na(y)] <- 0
+```
+
+```{r}
+# See http://r4ds.had.co.nz/many-models.html
+y_pca <- y %>% 
+  nest() %>% 
+  mutate(pca = map(data, ~ prcomp(.x %>% select(-id_student), 
+                                  center = TRUE, scale = TRUE)),
+         pca_aug = map2(pca, data, ~augment(.x, data = .y)))
+```
+
+```{r}
+var_exp <- y_pca %>% 
+  unnest(pca_aug) %>% 
+  summarize_at(.vars = vars(contains("PC")), .funs = funs(var)) %>% 
+  gather(key = pc, value = variance) %>% 
+  mutate(var_exp = variance/sum(variance),
+         cum_var_exp = cumsum(var_exp),
+         pc = str_replace(pc, ".fitted", ""))
+
+var_exp
+```
+
+```{r}
+var_exp %>% 
+  filter(var_exp > .02) %>%
+  rename(
+    `Variance Explained` = var_exp,
+    `Cumulative Variance Explained` = cum_var_exp
+  ) %>% 
+  gather(key = key, value = value, `Variance Explained`:`Cumulative Variance Explained`) %>% 
+  ggplot(aes(pc, value, group = key)) + 
+  geom_point() + 
+  geom_line() + 
+  facet_wrap(~key, scales = "free_y") +
+  theme_bw() +
+  lims(y = c(0, 1)) +
+  labs(y = "Variance",
+       title = "Variance explained by each principal component")
+```
+
+```{r}
+z <- y %>% select(-id_student)
+
+pr.out <- prcomp(z, scale=TRUE)
+
+a <- as.data.frame(pr.out$rotation)
+
+View(a[,1:5])
+```
+
+```{r}
+df_pca <- y_pca %>% 
+  unnest(pca_aug)
+
+df_pca5 <- df_pca %>%
+  select(id_student, PC1 = `.fittedPC1`)
+```
+
+```{r}
+df_pca5
+```
+
+```{r}
+df <- inner_join(df, df_pca5, by = "id_student")
+```
+
+```{r}
+df %>%
+  ggplot() +
+  geom_boxplot(aes(x = final_result, y = PC1, fill = final_result)) 
+```
+
+```{r}
+c1 <- df %>%
+  ungroup() %>%
+  select(unique_vle, unique_perday, total_vle, PC1)
+
+res2 <- rcorr(as.matrix(c1))
+res2
+```
