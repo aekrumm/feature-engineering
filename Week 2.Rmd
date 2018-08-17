@@ -111,7 +111,7 @@ stdinf_f13j_s <- stdinf_f13j %>%
 stdinf_f13j_s_vle_ag <- full_join(stdinf_f13j_s, stdvle_f13j_ag, by = "id_student")
 ```
 
-## Explore covariation between outcome and predictor (Part 1)
+## Explore covariation between outcome and predictor
 ```{r}
 # Boxplot of final result and total unique VLE
 stdinf_f13j_s_vle_ag %>%
