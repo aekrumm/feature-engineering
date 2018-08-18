@@ -70,7 +70,6 @@ dump <- stdinf_f13j_s_as %>%
   mutate(date = as.numeric(date)) %>%
   filter(date <= 50) %>% 
   expand(nesting(id_student, final_result, code_module, code_presentation, assessment_type), id_assessment)
-
 ```
 
 ```{r}
@@ -190,9 +189,9 @@ df <- df %>%
 ```{r}
 # Create dependent variable and reorder columns
 df <- df %>%
-  mutate(pass = ifelse(final_result == "Pass" | final_result == "Distinction", 1, 0),
+  mutate(fail = ifelse(final_result == "Pass" | final_result == "Distinction", 0, 1),
          total_as = as_sub_34873 + as_sub_34874) %>%
-  select(id_student, code_module, code_presentation, date_registration, date_unregistration, final_result, pass,
+  select(id_student, code_module, code_presentation, date_registration, date_unregistration, final_result, fail,
           total_vle, unique_vle, total_clicks, days, unique_perday, total_as, starts_with("as"))
 ```
 
@@ -201,14 +200,21 @@ df <- df %>%
 skim(df)
 ```
 
+```{r}
+# Create log transformed variables
+df <- df %>%
+  mutate(total_vle_cube = (total_vle)^(1/3),
+         unique_vle_cube = (unique_vle)^(1/3))
+```
+
 ## Preliminary model
 ```{r}
-m1 <- glm(pass ~ days + log(total_vle) + log(unique_vle) + as_sub_34873 + as_sub_34874, data = df)
+m1 <- glm(fail ~ scale(days) + scale(unique_vle_cube) + as_sub_34873 + as_sub_34874, data = df, family=binomial)
 summary(m1)
 ```
 
 ```{r}
-m1 <- glm(pass ~ days + log(total_vle) + log(unique_vle) + as_scr_34873 + as_scr_34874, data = df)
+m1 <- glm(fail ~ scale(days) + scale(unique_vle_cube) + scale(as_scr_34873) + scale(as_scr_34874), data = df)
 summary(m1)
 ```
 
