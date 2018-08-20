@@ -8,3 +8,9 @@ Kuzilek, J., Hlosta, M. & Zdrahal, Z. (2017). figshare https://doi.org/10.6084/m
 ## Description of R Markdown files
 * OPTIONAL Week 1
 This file provides a brief overview of the OULAD dataset; it describes the multiple files and features within each file. Also included are skimr functions that provide descriptive statistics of features within each dataset.
+
+* Week 2 R Markdown
+Run through the file on your own computer, and substitute presentation “2013J” with “2014J.” Quiz questions will come from your work with the Open University dataset this week. You will need to go beyond what is provided in the R Markdown files to answer these questions.
+
+* Week 3 R Markdown
+Run through the file on your own computer, and substitute presentation “2013J” with “2014J.” Quiz questions will come from your work with the Open University dataset this week. You will need to go beyond what is provided in the R Markdown files to answer these questions.
