@@ -177,8 +177,8 @@ df <- df %>%
 ```{r}
 # Replace missing with 0 when meaningful
 df <- df %>%
-  mutate(as_sub_34873 = ifelse(is.na(as_sub_34873), 0, as_sub_34873),
-         as_sub_34874 = ifelse(is.na(as_sub_34874), 0, as_sub_34874),
+  mutate(as_sub_34873 = ifelse(is.na(as_sub_34873), 0, as_sub_34873), # ** be careful when working with 2014J
+         as_sub_34874 = ifelse(is.na(as_sub_34874), 0, as_sub_34874), # ** be careful when working with 2014J
          total_vle = ifelse(is.na(total_vle), 0, total_vle),
          unique_vle = ifelse(is.na(unique_vle), 0, unique_vle),
          total_clicks = ifelse(is.na(total_clicks), 0, total_clicks),
@@ -190,7 +190,7 @@ df <- df %>%
 # Create dependent variable and reorder columns
 df <- df %>%
   mutate(fail = ifelse(final_result == "Pass" | final_result == "Distinction", 0, 1),
-         total_as = as_sub_34873 + as_sub_34874) %>%
+         total_as = as_sub_34873 + as_sub_34874) %>% # ** be careful when working with 2014J
   select(id_student, code_module, code_presentation, date_registration, date_unregistration, final_result, fail,
           total_vle, unique_vle, total_clicks, days, unique_perday, total_as, starts_with("as"))
 ```
@@ -201,7 +201,7 @@ skim(df)
 ```
 
 ```{r}
-# Create log transformed variables
+# Create cube root transformed variables
 df <- df %>%
   mutate(total_vle_cube = (total_vle)^(1/3),
          unique_vle_cube = (unique_vle)^(1/3))
@@ -209,11 +209,13 @@ df <- df %>%
 
 ## Preliminary model
 ```{r}
+# ** be careful when working with 2014J
 m1 <- glm(fail ~ scale(days) + scale(unique_vle_cube) + as_sub_34873 + as_sub_34874, data = df, family=binomial)
 summary(m1)
 ```
 
 ```{r}
+# ** be careful when working with 2014J
 m1 <- glm(fail ~ scale(days) + scale(unique_vle_cube) + scale(as_scr_34873) + scale(as_scr_34874), data = df)
 summary(m1)
 ```
@@ -222,17 +224,18 @@ summary(m1)
 
 ## Each VLE a feature and PCA
 ```{r}
-# See https://tbradley1013.github.io/2018/02/01/pca-in-a-tidy-verse-framework/
+# Create data frame to be spread
 x <- stdinf_f13j_s_vle %>%
   filter(date <= 50) %>%
   select(id_student, id_site, sum_click) %>%
   group_by(id_student, id_site) %>%
   summarise(sum_click = sum(sum_click, na.rm = T)) %>%
   ungroup() %>%
-  mutate(id_site = paste0("id", id_site))
+  mutate(id_site = paste0("id", id_site)) # Add text to VLE identifier, which is numeric
 ```
 
 ```{r}
+# Spread data
 y <- spread(x, id_site, sum_click)
 ```
 
@@ -241,19 +244,22 @@ y
 ```
 
 ```{r}
+# Replace missing with 0
 y[is.na(y)] <- 0
 ```
 
 ```{r}
-# See http://r4ds.had.co.nz/many-models.html
+# See http://r4ds.had.co.nz/many-models.html for overview broom package and running "many models"
 y_pca <- y %>% 
   nest() %>% 
   mutate(pca = map(data, ~ prcomp(.x %>% select(-id_student), 
-                                  center = TRUE, scale = TRUE)),
+                                  center = T, scale = T)),
          pca_aug = map2(pca, data, ~augment(.x, data = .y)))
 ```
 
 ```{r}
+# Code modified from https://tbradley1013.github.io/2018/02/01/pca-in-a-tidy-verse-framework/
+# Extract variance explained by component
 var_exp <- y_pca %>% 
   unnest(pca_aug) %>% 
   summarize_at(.vars = vars(contains("PC")), .funs = funs(var)) %>% 
@@ -266,6 +272,8 @@ var_exp
 ```
 
 ```{r}
+# Code modified from https://tbradley1013.github.io/2018/02/01/pca-in-a-tidy-verse-framework/
+# Plor variance explained by component
 var_exp %>% 
   filter(var_exp > .02) %>%
   rename(
@@ -283,39 +291,49 @@ var_exp %>%
        title = "Variance explained by each principal component")
 ```
 
+## PCA outside of tidyverse
 ```{r}
+# Remove student identifier
 z <- y %>% select(-id_student)
 
-pr.out <- prcomp(z, scale=TRUE)
+# Run PCA
+out <- prcomp(z, center = T, scale = T)
 
-a <- as.data.frame(pr.out$rotation)
-
-View(a[,1:5])
+# Create data frame of feature X PC loadings
+a <- as.data.frame(out$rotation)
 ```
 
 ```{r}
+a[,1:5]
+```
+
+```{r}
+# Extract PC1 scores from earlier, nested data frame
 df_pca <- y_pca %>% 
   unnest(pca_aug)
 
-df_pca5 <- df_pca %>%
+df_pc1 <- df_pca %>%
   select(id_student, PC1 = `.fittedPC1`)
 ```
 
 ```{r}
-df_pca5
+df_pc1
 ```
 
 ```{r}
-df <- inner_join(df, df_pca5, by = "id_student")
+# Join modeled data frame with new PC1
+df <- inner_join(df, df_pc1, by = "id_student")
 ```
 
 ```{r}
+# Visualize new component
 df %>%
   ggplot() +
-  geom_boxplot(aes(x = final_result, y = PC1, fill = final_result)) 
+  geom_boxplot(aes(x = final_result, y = PC1)) 
 ```
 
 ```{r}
+# Examine correlations among PC1 and similar operationalizations
 c1 <- df %>%
   ungroup() %>%
   select(unique_vle, unique_perday, total_vle, PC1)
